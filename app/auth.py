@@ -26,33 +26,40 @@ ACCESS_LOG_SCHEMA = [
 
 
 @st.cache_resource(show_spinner=False)
-def _bq_client_and_table():
-    """Returns (client, table_id), creating the access_log table if needed.
-    Cached per container instance so this only runs once, not every rerun."""
+def _bq_client():
+    """The BigQuery client itself is safe to cache -- construction doesn't
+    fail on a permission problem, only later calls (like inserts) do."""
     project = os.environ.get("GCP_PROJECT_ID")
     if not project:
-        return None, None
-
+        return None
     from google.cloud import bigquery
 
-    dataset = os.environ.get("BQ_DATASET", "voc_analytics")
-    client = bigquery.Client(project=project)
-    table_id = f"{project}.{dataset}.{ACCESS_LOG_TABLE}"
+    return bigquery.Client(project=project)
+
+
+def _ensure_table(client, table_id):
+    """Deliberately NOT cached: table creation is idempotent (exists_ok=True)
+    and cheap, and a transient failure (e.g. IAM permissions still
+    propagating) here must not get permanently baked in for the container's
+    lifetime the way caching the result would."""
+    from google.cloud import bigquery
 
     schema = [bigquery.SchemaField(f["name"], f["type"]) for f in ACCESS_LOG_SCHEMA]
-    table = bigquery.Table(table_id, schema=schema)
-    try:
-        client.create_table(table, exists_ok=True)
-    except Exception:
-        return None, None
-    return client, table_id
+    client.create_table(bigquery.Table(table_id, schema=schema), exists_ok=True)
 
 
 def log_event(event_type, session_id, user_name, user_email):
     """Best-effort usage logging -- never blocks or breaks the app if BigQuery
     is unreachable (e.g. local dev, or a transient outage during a demo)."""
-    client, table_id = _bq_client_and_table()
+    client = _bq_client()
     if client is None:
+        return
+    project = os.environ.get("GCP_PROJECT_ID")
+    dataset = os.environ.get("BQ_DATASET", "voc_analytics")
+    table_id = f"{project}.{dataset}.{ACCESS_LOG_TABLE}"
+    try:
+        _ensure_table(client, table_id)
+    except Exception:
         return
     row = {
         "log_id": str(uuid.uuid4()),
