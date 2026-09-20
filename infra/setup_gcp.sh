@@ -180,6 +180,17 @@ gcloud iam service-accounts add-iam-policy-binding "${DEPLOYER_SA_EMAIL}" \
 echo "==> Creating BigQuery dataset: ${BQ_DATASET}"
 bq --location="${BQ_LOCATION}" mk --dataset "${PROJECT_ID}:${BQ_DATASET}" || true
 
+# BigQuery datasets carry their own access list separate from the project's
+# Cloud IAM policy -- a project-level roles/bigquery.dataEditor grant does
+# NOT reliably reach into a dataset created by `bq mk` on this kind of
+# project. Bind the runtime SA directly on the dataset so it can actually
+# write to it (the access_log table, plus reading enriched_calls).
+echo "==> Granting the runtime SA data-editor access directly on the dataset"
+bq add-iam-policy-binding \
+  --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
+  --role="roles/bigquery.dataEditor" \
+  "${PROJECT_ID}:${BQ_DATASET}" || true
+
 # ---------------------------------------------------------------------------
 # Done. These go into GitHub: Settings -> Secrets and variables -> Actions ->
 # Variables tab (they are identifiers, not secrets, but Variables is the
