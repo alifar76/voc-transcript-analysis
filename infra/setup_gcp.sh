@@ -96,19 +96,17 @@ gcloud iam service-accounts create "${DEPLOYER_SA_NAME}" \
 DEPLOYER_SA_EMAIL="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 wait_for_service_account "${DEPLOYER_SA_EMAIL}"
 
-for role in roles/run.admin roles/cloudbuild.builds.editor roles/artifactregistry.admin roles/storage.admin; do
+for role in roles/run.admin roles/cloudbuild.builds.editor roles/artifactregistry.admin roles/storage.admin roles/iam.serviceAccountUser; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${DEPLOYER_SA_EMAIL}" \
     --role="${role}" \
     --condition=None \
     --quiet
 done
-
-# Let the deployer deploy Cloud Run services that run *as* the runtime SA.
-gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA_EMAIL}" \
-  --member="serviceAccount:${DEPLOYER_SA_EMAIL}" \
-  --role="roles/iam.serviceAccountUser" \
-  --quiet
+# roles/iam.serviceAccountUser at the project level lets the deployer act as
+# any service account in the project -- both the runtime SA it deploys Cloud
+# Run to run as, and the default Compute Engine service account that Cloud
+# Build uses under the hood to actually build the container image.
 
 # ---------------------------------------------------------------------------
 # 3. Workload Identity Federation: let GitHub Actions authenticate as the
