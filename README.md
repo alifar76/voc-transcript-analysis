@@ -134,6 +134,38 @@ Push (or merge a PR) to `main`. GitHub Actions builds the container from
 source and deploys it to Cloud Run automatically. Re-running the workflow
 (Actions tab → "Run workflow") re-deploys on demand.
 
+### Troubleshooting: dashboard URL returns 403 Forbidden
+
+If the Cloud Run URL loads a generic Google 403 page ("Your client does not
+have permission to get URL / from this server") rather than the dashboard,
+the project's GCP Organization is enforcing a **Domain Restricted Sharing**
+policy (`iam.allowedPolicyMemberDomains`) that silently blocks making the
+service public, even though the deploy itself succeeds with
+`--allow-unauthenticated`. `infra/setup_gcp.sh` now overrides this policy for
+the project automatically (harmless no-op if there's no such policy), but if
+you're hitting this on an already-created project, run:
+
+```bash
+cat > /tmp/policy.yaml <<EOF
+name: projects/voc-dane/policies/iam.allowedPolicyMemberDomains
+spec:
+  rules:
+  - allowAll: true
+EOF
+gcloud org-policies set-policy /tmp/policy.yaml
+
+# then, once that's propagated (can take several minutes):
+gcloud run services add-iam-policy-binding voc-dashboard \
+  --region=us-central1 --project=voc-dane \
+  --member="allUsers" --role="roles/run.invoker"
+```
+
+Org policy propagation into Cloud Run's own enforcement can take up to ~10
+minutes even after `gcloud org-policies describe --effective` already shows
+the override as active — if the `add-iam-policy-binding` command fails
+immediately after setting the policy, just wait and retry rather than
+suspecting a different cause.
+
 ## Demo script
 
 1. **Overview** — call volume by LOB, complaint/opportunity rates, sentiment

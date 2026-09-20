@@ -8,13 +8,16 @@
 #
 # What it sets up:
 #   1. Required APIs (Cloud Run, Vertex AI, BigQuery, Artifact Registry, Cloud Build)
-#   2. A runtime service account for the Cloud Run app (Vertex AI + BigQuery read access)
-#   3. A deployer service account for GitHub Actions (Cloud Run + Cloud Build access)
-#   4. Build permissions for the default Compute Engine SA (Cloud Build's own
+#   2. An override of the "Domain Restricted Sharing" org policy for this
+#      project only, if one exists, so the deployed dashboard can actually be
+#      made public (harmless no-op if there's no such policy)
+#   3. A runtime service account for the Cloud Run app (Vertex AI + BigQuery read access)
+#   4. A deployer service account for GitHub Actions (Cloud Run + Cloud Build access)
+#   5. Build permissions for the default Compute Engine SA (Cloud Build's own
 #      identity for `gcloud run deploy --source` builds)
-#   5. Workload Identity Federation so GitHub Actions can authenticate as that
+#   6. Workload Identity Federation so GitHub Actions can authenticate as that
 #      deployer service account WITHOUT a long-lived JSON key ever leaving GCP
-#   6. The BigQuery dataset the enrichment pipeline writes into
+#   7. The BigQuery dataset the enrichment pipeline writes into
 #
 # At the end it prints the values you paste into the GitHub repo's
 # Settings -> Secrets and variables -> Actions -> Variables tab.
@@ -46,10 +49,29 @@ gcloud services enable \
   iamcredentials.googleapis.com \
   iam.googleapis.com \
   sts.googleapis.com \
-  storage.googleapis.com
+  storage.googleapis.com \
+  orgpolicy.googleapis.com
 
 PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 echo "==> Project number: ${PROJECT_NUMBER}"
+
+# If this project sits under a Google Cloud Organization, it likely inherits
+# a "Domain Restricted Sharing" policy that blocks granting allUsers access
+# to anything -- which would otherwise silently break `--allow-unauthenticated`
+# on the Cloud Run deploy (the deploy succeeds, but the service stays 403 to
+# the public). Override it for this project only, so the demo dashboard can
+# actually be reached without anyone signing in. This is a no-op if the
+# project has no organization (the command just fails harmlessly).
+echo "==> Allowing public (unauthenticated) access for this project, if an org policy would otherwise block it"
+cat > /tmp/voc-dane-orgpolicy.yaml <<EOF
+name: projects/${PROJECT_ID}/policies/iam.allowedPolicyMemberDomains
+spec:
+  rules:
+  - allowAll: true
+EOF
+gcloud org-policies set-policy /tmp/voc-dane-orgpolicy.yaml 2>/dev/null || \
+  echo "    (no organization policy to override here -- that's fine, skipping)"
+rm -f /tmp/voc-dane-orgpolicy.yaml
 
 # IAM can take a few seconds to propagate a newly created service account, so
 # a role-binding command run immediately after `create` can fail with a false
