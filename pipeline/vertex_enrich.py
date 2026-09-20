@@ -29,7 +29,7 @@ from vertexai.generative_models import GenerationConfig, GenerativeModel
 
 from prompts import RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, build_user_prompt
 
-DEFAULT_MODEL = "gemini-2.0-flash-001"
+DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_RETRIES = 4
 
 FALLBACK_RECORD = {

@@ -152,6 +152,6 @@ source and deploys it to Cloud Run automatically. Re-running the workflow
   dev never depend on live GCP credentials. Run `pipeline/vertex_enrich.py`
   against a real project to get genuine Gemini-generated labels, cleaned
   transcripts, and summaries into BigQuery.
-- `gemini-2.0-flash-001` is the default model; if a newer Gemini model is GA
+- `gemini-3.8-flash` is the default model; if a newer Gemini model is GA
   in your project/region by the time you deploy, override it via
   `VERTEX_MODEL_NAME`.

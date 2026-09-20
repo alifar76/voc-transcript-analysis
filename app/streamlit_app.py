@@ -395,7 +395,7 @@ with tab_live:
     if st.button("✨ Analyze with Vertex AI (Gemini)", type="primary"):
         project = os.environ.get("GCP_PROJECT_ID")
         location = os.environ.get("GCP_LOCATION", "us-central1")
-        model_name = os.environ.get("VERTEX_MODEL_NAME", "gemini-2.0-flash-001")
+        model_name = os.environ.get("VERTEX_MODEL_NAME", "gemini-3.8-flash")
 
         if not project:
             st.error(
