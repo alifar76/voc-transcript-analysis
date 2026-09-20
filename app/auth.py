@@ -6,6 +6,7 @@ APP_ACCESS_CODE isn't set (local dev), the gate is skipped entirely.
 """
 
 import os
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
@@ -59,7 +60,8 @@ def log_event(event_type, session_id, user_name, user_email):
     table_id = f"{project}.{dataset}.{ACCESS_LOG_TABLE}"
     try:
         _ensure_table(client, table_id)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        print(f"[auth] failed to ensure table {table_id}: {exc}", file=sys.stderr)
         return
     row = {
         "log_id": str(uuid.uuid4()),
@@ -70,9 +72,11 @@ def log_event(event_type, session_id, user_name, user_email):
         "event_time": datetime.now(timezone.utc).isoformat(),
     }
     try:
-        client.insert_rows_json(table_id, [row])
-    except Exception:
-        pass
+        errors = client.insert_rows_json(table_id, [row])
+        if errors:
+            print(f"[auth] insert_rows_json returned errors: {errors}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[auth] failed to insert log row into {table_id}: {exc}", file=sys.stderr)
 
 
 def require_login():
