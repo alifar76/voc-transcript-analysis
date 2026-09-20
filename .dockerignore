@@ -1,0 +1,9 @@
+.venv/
+.git/
+__pycache__/
+*.pyc
+tests/
+data_gen/
+infra/
+.github/
+*.md

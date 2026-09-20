@@ -1,0 +1,49 @@
+name: Deploy VOC dashboard to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # required for Workload Identity Federation
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_EMAIL }}
+
+      - name: Deploy to Cloud Run (build from source via Cloud Build)
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: voc-dashboard
+          region: ${{ vars.GCP_REGION }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          source: .
+          flags: >-
+            --allow-unauthenticated
+            --service-account=${{ vars.GCP_RUNTIME_SA_EMAIL }}
+            --memory=1Gi
+            --cpu=1
+            --min-instances=0
+            --max-instances=3
+          env_vars: |
+            GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}
+            GCP_LOCATION=${{ vars.GCP_REGION }}
+            BQ_DATASET=voc_analytics
+            BQ_TABLE=enriched_calls
+            VERTEX_MODEL_NAME=gemini-2.0-flash-001
+
+      - name: Show deployed URL
+        run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
