@@ -20,7 +20,8 @@
 set -euo pipefail
 
 PROJECT_ID="voc-dane"
-REGION="us-central1"
+REGION="us-central1"          # Cloud Run deploy region
+VERTEX_LOCATION="us"          # Vertex AI (Gemini) multi-region: "us" or "eu", NOT a region like us-central1
 BQ_LOCATION="US"
 GITHUB_REPO="alifar76/voc-transcript-analysis"   # owner/repo -- must match exactly
 
@@ -167,7 +168,7 @@ Next steps:
        python pipeline/vertex_enrich.py \\
          --input data/synthetic_transcripts.csv \\
          --output data/enriched_calls.parquet \\
-         --project ${PROJECT_ID} --location ${REGION} \\
+         --project ${PROJECT_ID} --location ${VERTEX_LOCATION} \\
          --load-bigquery --bq-dataset ${BQ_DATASET} --bq-table enriched_calls
   3. Merge/push to the 'main' branch -- GitHub Actions will build and deploy
      the dashboard to Cloud Run automatically.

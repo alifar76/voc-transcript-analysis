@@ -66,7 +66,7 @@ python pipeline/simulate_enrich.py \
 #     and a GCP project with the Vertex AI API enabled)
 python pipeline/vertex_enrich.py \
   --input data/synthetic_transcripts.csv --output data/enriched_calls.parquet \
-  --project voc-dane --location us-central1
+  --project voc-dane --location us
 
 # 3. Run the dashboard
 streamlit run app/streamlit_app.py
@@ -118,9 +118,15 @@ Dane is real, not canned:
 python pipeline/vertex_enrich.py \
   --input data/synthetic_transcripts.csv \
   --output data/enriched_calls.parquet \
-  --project voc-dane --location us-central1 \
+  --project voc-dane --location us \
   --load-bigquery --bq-dataset voc_analytics --bq-table enriched_calls
 ```
+
+`--location us` is a Vertex AI **multi-region** value (the current requirement
+for calling Gemini through the Google Gen AI SDK's Vertex mode) — not a
+regional value like `us-central1`. `eu` is the other supported multi-region
+option. This is unrelated to `GCP_REGION`, which is just where the Cloud Run
+container itself runs.
 
 ### Deploy
 

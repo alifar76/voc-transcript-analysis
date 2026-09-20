@@ -394,7 +394,7 @@ with tab_live:
 
     if st.button("✨ Analyze with Vertex AI (Gemini)", type="primary"):
         project = os.environ.get("GCP_PROJECT_ID")
-        location = os.environ.get("GCP_LOCATION", "us-central1")
+        location = os.environ.get("GCP_LOCATION", "us")
         model_name = os.environ.get("VERTEX_MODEL_NAME", "gemini-3.8-flash")
 
         if not project:
@@ -404,21 +404,21 @@ with tab_live:
             )
         else:
             try:
-                import vertexai
-                from vertexai.generative_models import GenerationConfig, GenerativeModel
+                from google import genai
+                from google.genai import types
 
                 from prompts import RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, build_user_prompt
 
                 with st.spinner("Calling Vertex AI..."):
-                    vertexai.init(project=project, location=location)
-                    model = GenerativeModel(model_name, system_instruction=SYSTEM_INSTRUCTION)
-                    generation_config = GenerationConfig(
+                    client = genai.Client(vertexai=True, project=project, location=location)
+                    config = types.GenerateContentConfig(
+                        system_instruction=SYSTEM_INSTRUCTION,
                         response_mime_type="application/json",
                         response_schema=RESPONSE_SCHEMA,
                         temperature=0.2,
                     )
-                    response = model.generate_content(
-                        build_user_prompt(lob_choice, transcript_text), generation_config=generation_config
+                    response = client.models.generate_content(
+                        model=model_name, contents=build_user_prompt(lob_choice, transcript_text), config=config
                     )
                     import json
 

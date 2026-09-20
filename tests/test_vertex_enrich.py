@@ -18,7 +18,7 @@ def _fake_response(payload):
 
 
 def test_enrich_one_happy_path():
-    model = MagicMock()
+    client = MagicMock()
     payload = {
         "cleaned_transcript": "Agent: Thank you for calling. Customer: My card was declined.",
         "summary": "Customer reports repeated debit card declines.",
@@ -31,9 +31,9 @@ def test_enrich_one_happy_path():
         "urgency_level": "medium",
         "key_topics": ["debit card", "decline"],
     }
-    model.generate_content.return_value = _fake_response(payload)
+    client.models.generate_content.return_value = _fake_response(payload)
 
-    record = enrich_one(model, "Retail & Consumer Banking", "raw noisy transcript text")
+    record = enrich_one(client, "gemini-3.8-flash", "Retail & Consumer Banking", "raw noisy transcript text")
 
     assert record["is_complaint"] is True
     assert record["complaint_category"] == "Debit card issue"
@@ -41,12 +41,12 @@ def test_enrich_one_happy_path():
 
 
 def test_enrich_one_falls_back_after_retries(monkeypatch):
-    model = MagicMock()
-    model.generate_content.side_effect = RuntimeError("simulated API error")
+    client = MagicMock()
+    client.models.generate_content.side_effect = RuntimeError("simulated API error")
     monkeypatch.setattr("vertex_enrich.time.sleep", lambda *_: None)
 
-    record = enrich_one(model, "Fraud & Disputes", "raw noisy transcript text")
+    record = enrich_one(client, "gemini-3.8-flash", "Fraud & Disputes", "raw noisy transcript text")
 
     assert record["extraction_error"] is True
     assert record["complaint_category"] == FALLBACK_RECORD["complaint_category"]
-    assert model.generate_content.call_count == 4
+    assert client.models.generate_content.call_count == 4

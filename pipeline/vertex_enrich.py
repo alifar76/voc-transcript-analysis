@@ -9,11 +9,16 @@ Requires:
     with a service account that has the Vertex AI User role), and
   - the target GCP project to have the Vertex AI API enabled.
 
+Uses the Google Gen AI SDK (`google-genai`) in Vertex mode, not the older
+`vertexai.generative_models` module (deprecated, and no longer serving
+current Gemini models on classic regional endpoints). Location is a
+multi-region value (`us` or `eu`), not a regional one like `us-central1`.
+
 Usage:
     python vertex_enrich.py \
         --input ../data/synthetic_transcripts.csv \
         --output ../data/enriched_calls.parquet \
-        --project voc-dane --location us-central1 \
+        --project voc-dane --location us \
         --load-bigquery --bq-dataset voc_analytics --bq-table enriched_calls
 """
 
@@ -24,12 +29,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
-import vertexai
-from vertexai.generative_models import GenerationConfig, GenerativeModel
+from google import genai
+from google.genai import types
 
 from prompts import RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, build_user_prompt
 
 DEFAULT_MODEL = "gemini-3.8-flash"
+DEFAULT_LOCATION = "us"
 MAX_RETRIES = 4
 
 FALLBACK_RECORD = {
@@ -47,9 +53,10 @@ FALLBACK_RECORD = {
 }
 
 
-def enrich_one(model, lob, raw_transcript):
+def enrich_one(client, model_name, lob, raw_transcript):
     prompt = build_user_prompt(lob, raw_transcript)
-    generation_config = GenerationConfig(
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_INSTRUCTION,
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
         temperature=0.2,
@@ -57,7 +64,7 @@ def enrich_one(model, lob, raw_transcript):
     last_err = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = model.generate_content(prompt, generation_config=generation_config)
+            response = client.models.generate_content(model=model_name, contents=prompt, config=config)
             record = json.loads(response.text)
             record["extraction_error"] = False
             return record
@@ -69,8 +76,7 @@ def enrich_one(model, lob, raw_transcript):
 
 
 def run(input_path, output_path, project, location, model_name, limit, workers):
-    vertexai.init(project=project, location=location)
-    model = GenerativeModel(model_name, system_instruction=SYSTEM_INSTRUCTION)
+    client = genai.Client(vertexai=True, project=project, location=location)
 
     df = pd.read_csv(input_path)
     if limit:
@@ -79,7 +85,7 @@ def run(input_path, output_path, project, location, model_name, limit, workers):
     results = [None] * len(df)
 
     def task(i, row):
-        return i, enrich_one(model, row["lob"], row["raw_transcript"])
+        return i, enrich_one(client, model_name, row["lob"], row["raw_transcript"])
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(task, i, row) for i, row in df.iterrows()]
@@ -108,7 +114,7 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--project", required=True)
-    parser.add_argument("--location", default="us-central1")
+    parser.add_argument("--location", default=DEFAULT_LOCATION, help="Vertex AI multi-region: 'us' or 'eu'")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--limit", type=int, default=None, help="Only process the first N rows (for quick tests)")
     parser.add_argument("--workers", type=int, default=10)
