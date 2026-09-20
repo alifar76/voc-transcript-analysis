@@ -81,11 +81,11 @@ The **Live AI Demo** tab always calls Vertex AI directly (it's the point of
 that tab), so it needs `GCP_PROJECT_ID` set and Vertex AI API access from
 wherever the app is running.
 
-## Deploying to GCP (project: `voc-dane`)
+## Deploying to GCP
 
 ### One-time setup (you run this, in Cloud Shell)
 
-Open Cloud Shell on the `voc-dane` project and run:
+Open Cloud Shell on your GCP project and run:
 
 ```bash
 git clone https://github.com/alifar76/voc-transcript-analysis.git
@@ -102,7 +102,7 @@ Variables tab.
 
 | Variable | What it is |
 |---|---|
-| `GCP_PROJECT_ID` | `voc-dane` |
+| `GCP_PROJECT_ID` | Your GCP project ID |
 | `GCP_REGION` | Cloud Run region, e.g. `us-central1` |
 | `GCP_DEPLOYER_SA_EMAIL` | Service account GitHub Actions impersonates to deploy |
 | `GCP_RUNTIME_SA_EMAIL` | Service account the deployed dashboard runs as |
@@ -124,7 +124,7 @@ sensitive):
 
 | Secret | What it is |
 |---|---|
-| `APP_ACCESS_CODE` | Any passcode you choose — this is what you hand to Dane (or anyone else) to get in |
+| `APP_ACCESS_CODE` | Any passcode you choose — this is what you hand to whoever you're sharing the demo with |
 
 Push to `main` (or re-run the deploy workflow) after adding it. Leaving this
 secret unset deploys with no gate at all (open to anyone with the URL, same
@@ -144,8 +144,8 @@ ORDER BY event_time DESC;
 ### Populate BigQuery with real AI-enriched data
 
 Run once (also from Cloud Shell, or any machine authenticated to the
-project) — this is what actually calls Gemini and is the part worth showing
-Dane is real, not canned:
+project) — this is what actually calls Gemini, and is the part worth
+demoing live so it's clear the results are real, not canned:
 
 ```bash
 python pipeline/vertex_enrich.py \
