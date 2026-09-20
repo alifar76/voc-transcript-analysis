@@ -137,6 +137,10 @@ tab_overview, tab_complaints, tab_opps, tab_trends, tab_live, tab_method = st.ta
 # Overview
 # ---------------------------------------------------------------------------
 with tab_overview:
+    st.caption(
+        "The 30-second view: how many calls came in, how many were complaints versus new "
+        "business opportunities, and whether customers seem happier or more frustrated lately."
+    )
     c1, c2, c3, c4 = st.columns(4)
     complaint_rate = df["is_complaint"].mean()
     _, complaint_delta = kpi_delta(df, "is_complaint")
@@ -159,8 +163,16 @@ with tab_overview:
         delta=f"{opp_delta:+.0f}% vs prior 7d" if opp_delta is not None else None,
     )
     c4.metric("High/critical urgency calls", f"{high_risk:,}")
+    st.caption(
+        "The small number under each figure compares it to the 7 days before that. For complaint "
+        "rate, a rising number is bad news; for opportunity rate, a rising number is good news."
+    )
 
     st.markdown("#### Weekly call volume by line of business")
+    st.caption(
+        "Each bar is one week. Taller bars mean more calls that week. Colors show which part of "
+        "the bank (Credit Cards, Mortgages, etc.) those calls came from."
+    )
     weekly_by_lob = (
         df.set_index("call_datetime").groupby("lob").resample("W-MON")["call_id"].count().reset_index(name="calls")
     )
@@ -179,6 +191,7 @@ with tab_overview:
     oc1, oc2 = st.columns(2)
     with oc1:
         st.markdown("#### Calls by line of business")
+        st.caption("Which parts of the bank generated the most call volume overall, in the selected time range.")
         by_lob = df["lob"].value_counts().reindex(LOB_ORDER).fillna(0).reset_index()
         by_lob.columns = ["lob", "calls"]
         fig = px.bar(
@@ -194,6 +207,10 @@ with tab_overview:
 
     with oc2:
         st.markdown("#### Weekly sentiment trend")
+        st.caption(
+            "Average customer mood each week, from -1 (very negative) to +1 (very positive). "
+            "A line dropping toward or below zero means customers got more frustrated that week."
+        )
         wk = weekly_agg(df)
         fig = go.Figure()
         fig.add_trace(
@@ -214,12 +231,17 @@ with tab_overview:
 # Complaints & Risk
 # ---------------------------------------------------------------------------
 with tab_complaints:
+    st.caption(
+        "Every call the AI flagged as a complaint, broken down by what customers were upset "
+        "about and how urgently each one needs attention."
+    )
     complaints = df[df["is_complaint"]]
     st.markdown(f"**{len(complaints):,} complaint calls** ({len(complaints) / len(df):.1%} of filtered volume)")
 
     cc1, cc2 = st.columns([3, 2])
     with cc1:
         st.markdown("#### Top complaint categories")
+        st.caption("The most common reasons customers called to complain, ranked by how often each came up.")
         top_cat = complaints["complaint_category"].value_counts().head(10).sort_values()
         fig = px.bar(top_cat, x=top_cat.values, y=top_cat.index, orientation="h")
         fig.update_traces(marker_color=SEQUENTIAL_BLUE[4])
@@ -228,6 +250,10 @@ with tab_complaints:
 
     with cc2:
         st.markdown("#### Complaint urgency mix")
+        st.caption(
+            "How serious the AI judged each complaint: green = low priority, yellow = medium, "
+            "orange = high, red = critical (things like fraud that need action right away)."
+        )
         urg = complaints["urgency_level"].value_counts().reindex(URGENCY_ORDER).fillna(0)
         fig = px.bar(
             urg,
@@ -241,6 +267,10 @@ with tab_complaints:
         st.plotly_chart(fig, width="stretch")
 
     st.markdown("#### Highest-urgency calls needing follow-up")
+    st.caption(
+        "The most urgent complaints, with the raw noisy transcript next to what the AI cleaned it "
+        "up into -- click a row to expand it and see both side by side."
+    )
     risk = complaints[complaints["urgency_level"].isin(["high", "critical"])].sort_values(
         "call_datetime", ascending=False
     )
@@ -259,12 +289,17 @@ with tab_complaints:
 # Business Opportunities
 # ---------------------------------------------------------------------------
 with tab_opps:
+    st.caption(
+        "Calls where a customer showed interest in something new -- an upsell, a better rate, a "
+        "new account -- that a banker could follow up on."
+    )
     opps = df[df["is_business_opportunity"]]
     st.markdown(f"**{len(opps):,} business-opportunity signals** ({len(opps) / len(df):.1%} of filtered volume)")
 
     oc1, oc2 = st.columns([3, 2])
     with oc1:
         st.markdown("#### Opportunity types")
+        st.caption("What kind of new business these calls represent, ranked by how often each type came up.")
         top_opp = opps["opportunity_type"].value_counts().sort_values()
         fig = px.bar(top_opp, x=top_opp.values, y=top_opp.index, orientation="h")
         fig.update_traces(marker_color=SEQUENTIAL_BLUE[4])
@@ -273,6 +308,10 @@ with tab_opps:
 
     with oc2:
         st.markdown("#### Weekly opportunity volume")
+        st.caption(
+            "How many opportunity moments happened each week. A rising line means more potential "
+            "new business is coming in through the contact center."
+        )
         wk_opp = (
             opps.set_index("call_datetime").resample("W-MON")["call_id"].count().reset_index(name="calls")
         )
@@ -282,6 +321,7 @@ with tab_opps:
         st.plotly_chart(fig, width="stretch")
 
     st.markdown("#### Opportunity calls")
+    st.caption("The individual calls behind the numbers above, most recent first.")
     show_cols = ["call_datetime", "lob", "opportunity_type", "summary", "agent_id"]
     st.dataframe(
         opps[show_cols].sort_values("call_datetime", ascending=False).head(200),
@@ -293,6 +333,17 @@ with tab_opps:
 # Trends (WoW / MoM)
 # ---------------------------------------------------------------------------
 with tab_trends:
+    st.caption(
+        "How things are moving over time: are complaints and opportunities trending up or down, "
+        "week to week and month to month?"
+    )
+    st.info(
+        "**How to read the % change columns:** for *complaint rate*, a positive % means it got "
+        "worse that week (more complaints); negative means it improved. For *opportunity rate*, "
+        "it's the opposite -- positive means more opportunities came in, which is good news. Same "
+        "plus/minus sign, opposite meaning, depending on the column."
+    )
+
     st.markdown("#### Week-over-week")
     wk = weekly_agg(df)
     wk["complaint_wow_pct"] = wk["complaint_rate"].pct_change() * 100
@@ -331,6 +382,7 @@ with tab_trends:
     )
 
     st.markdown("#### Month-over-month")
+    st.caption("Same idea as the weekly table above, just rolled up by month for the bigger-picture trend.")
     mo = monthly_agg(df)
     mo["complaint_mom_pct"] = mo["complaint_rate"].pct_change() * 100
     mo["opportunity_mom_pct"] = mo["opportunity_rate"].pct_change() * 100
@@ -358,6 +410,10 @@ with tab_trends:
     )
 
     st.markdown("#### Sentiment: weekly vs prior week (diverging)")
+    st.caption(
+        "Blue bars mean customer mood improved compared to the week before; red bars mean it got "
+        "worse. This highlights sudden swings that the smoother trend line on the Overview tab can hide."
+    )
     wk_delta = wk.dropna(subset=["avg_sentiment"]).copy()
     wk_delta["sentiment_change"] = wk_delta["avg_sentiment"].diff()
     fig = go.Figure(
@@ -378,6 +434,12 @@ with tab_live:
     st.markdown(
         "Paste a raw, noisy phone-call transcript (or load a real synthetic example below) and run it through "
         "the same Vertex AI (Gemini) extraction used to build this dashboard, live."
+    )
+    st.caption(
+        "This is the same AI step that built every chart in this app, just run on one call in "
+        "front of you instead of all 1,000+ at once. It reads the messy transcript, cleans it up, "
+        "and tells you: how the customer felt, whether it was a complaint or an opportunity, how "
+        "urgent it is, and what it was about."
     )
 
     if "demo_transcript" not in st.session_state:
