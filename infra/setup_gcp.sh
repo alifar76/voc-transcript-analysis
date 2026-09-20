@@ -92,7 +92,8 @@ wait_for_service_account() {
 
 # ---------------------------------------------------------------------------
 # 1. Runtime service account -- identity the deployed Cloud Run app runs as.
-#    Needs to call Vertex AI (Live AI Demo tab) and read BigQuery (dashboards).
+#    Needs to call Vertex AI (Live AI Demo tab), read BigQuery (dashboards),
+#    and write BigQuery (the login/access-log table).
 # ---------------------------------------------------------------------------
 echo "==> Creating runtime service account: ${RUNTIME_SA_NAME}"
 gcloud iam service-accounts create "${RUNTIME_SA_NAME}" \
@@ -101,7 +102,7 @@ gcloud iam service-accounts create "${RUNTIME_SA_NAME}" \
 RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 wait_for_service_account "${RUNTIME_SA_EMAIL}"
 
-for role in roles/aiplatform.user roles/bigquery.dataViewer roles/bigquery.jobUser; do
+for role in roles/aiplatform.user roles/bigquery.dataEditor roles/bigquery.jobUser; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
     --role="${role}" \

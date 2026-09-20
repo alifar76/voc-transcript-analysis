@@ -108,6 +108,39 @@ Variables tab.
 | `GCP_RUNTIME_SA_EMAIL` | Service account the deployed dashboard runs as |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | The WIF provider resource name |
 
+### Access gate (optional but recommended for a public link)
+
+The dashboard is deployed publicly (`--allow-unauthenticated`) so anyone with
+the URL can open it — fine for a controlled demo link, less fine for an
+open-to-the-world Cloud Run URL sitting around indefinitely. A lightweight
+gate is built in: visitors enter their name and a shared access code before
+they can see anything, and every login (plus a periodic activity ping) is
+logged to BigQuery (`voc_analytics.access_log`) so you can see who's used it
+and roughly how much.
+
+To turn it on, add one more **GitHub repo Secret** (Settings → Secrets and
+variables → Actions → **Secrets** tab, not Variables, since this one's
+sensitive):
+
+| Secret | What it is |
+|---|---|
+| `APP_ACCESS_CODE` | Any passcode you choose — this is what you hand to Dane (or anyone else) to get in |
+
+Push to `main` (or re-run the deploy workflow) after adding it. Leaving this
+secret unset deploys with no gate at all (open to anyone with the URL, same
+as before); it's optional, not required for the dashboard to work.
+
+This is a shared-passcode gate, not real per-user accounts — proportionate
+to "keep the random internet out and see who's using it," not meant to
+withstand a determined attacker. Query who's used it (and when) directly in
+BigQuery:
+
+```sql
+SELECT user_name, user_email, event_type, event_time
+FROM `voc-dane.voc_analytics.access_log`
+ORDER BY event_time DESC;
+```
+
 ### Populate BigQuery with real AI-enriched data
 
 Run once (also from Cloud Shell, or any machine authenticated to the

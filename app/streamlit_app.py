@@ -19,6 +19,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 
+from auth import render_user_badge, require_login  # noqa: E402
 from data_access import load_data  # noqa: E402
 from theme import (  # noqa: E402
     CATEGORICAL,
@@ -38,6 +39,8 @@ st.set_page_config(page_title="Meridian Bank | VOC Intelligence", page_icon="\U0
 
 BANK_NAME = "Meridian Bank"
 
+require_login()
+render_user_badge()
 
 # ---------------------------------------------------------------------------
 # Data loading + filters
