@@ -48,6 +48,23 @@ gcloud services enable \
 PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 echo "==> Project number: ${PROJECT_NUMBER}"
 
+# IAM can take a few seconds to propagate a newly created service account, so
+# a role-binding command run immediately after `create` can fail with a false
+# "does not exist". Wait until the SA is actually visible before using it.
+wait_for_service_account() {
+  local email="$1"
+  local tries=0
+  until gcloud iam service-accounts describe "${email}" >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    if [ "${tries}" -ge 20 ]; then
+      echo "Timed out waiting for service account ${email} to become visible." >&2
+      exit 1
+    fi
+    echo "    ...waiting for ${email} to propagate (${tries}/20)"
+    sleep 3
+  done
+}
+
 # ---------------------------------------------------------------------------
 # 1. Runtime service account -- identity the deployed Cloud Run app runs as.
 #    Needs to call Vertex AI (Live AI Demo tab) and read BigQuery (dashboards).
@@ -57,6 +74,7 @@ gcloud iam service-accounts create "${RUNTIME_SA_NAME}" \
   --display-name="VOC dashboard Cloud Run runtime identity" || true
 
 RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+wait_for_service_account "${RUNTIME_SA_EMAIL}"
 
 for role in roles/aiplatform.user roles/bigquery.dataViewer roles/bigquery.jobUser; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
@@ -75,6 +93,7 @@ gcloud iam service-accounts create "${DEPLOYER_SA_NAME}" \
   --display-name="GitHub Actions deployer for VOC dashboard" || true
 
 DEPLOYER_SA_EMAIL="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+wait_for_service_account "${DEPLOYER_SA_EMAIL}"
 
 for role in roles/run.admin roles/cloudbuild.builds.editor roles/artifactregistry.writer roles/storage.admin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
