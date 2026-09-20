@@ -10,9 +10,11 @@
 #   1. Required APIs (Cloud Run, Vertex AI, BigQuery, Artifact Registry, Cloud Build)
 #   2. A runtime service account for the Cloud Run app (Vertex AI + BigQuery read access)
 #   3. A deployer service account for GitHub Actions (Cloud Run + Cloud Build access)
-#   4. Workload Identity Federation so GitHub Actions can authenticate as that
+#   4. Build permissions for the default Compute Engine SA (Cloud Build's own
+#      identity for `gcloud run deploy --source` builds)
+#   5. Workload Identity Federation so GitHub Actions can authenticate as that
 #      deployer service account WITHOUT a long-lived JSON key ever leaving GCP
-#   5. The BigQuery dataset the enrichment pipeline writes into
+#   6. The BigQuery dataset the enrichment pipeline writes into
 #
 # At the end it prints the values you paste into the GitHub repo's
 # Settings -> Secrets and variables -> Actions -> Variables tab.
@@ -109,7 +111,25 @@ done
 # Build uses under the hood to actually build the container image.
 
 # ---------------------------------------------------------------------------
-# 3. Workload Identity Federation: let GitHub Actions authenticate as the
+# 3. Default Compute Engine service account -- this is the identity Cloud
+#    Build itself runs the actual build job as for `gcloud run deploy
+#    --source` (separate from the deployer SA, which just kicks the deploy
+#    off). Newer GCP projects no longer auto-grant this SA the old broad
+#    "Editor" role, so it needs these explicitly or the build can't read its
+#    own uploaded source, push the built image, or write build logs.
+# ---------------------------------------------------------------------------
+COMPUTE_SA_EMAIL="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+echo "==> Granting build permissions to default Compute Engine SA: ${COMPUTE_SA_EMAIL}"
+for role in roles/storage.objectViewer roles/artifactregistry.writer roles/logging.logWriter; do
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${COMPUTE_SA_EMAIL}" \
+    --role="${role}" \
+    --condition=None \
+    --quiet
+done
+
+# ---------------------------------------------------------------------------
+# 4. Workload Identity Federation: let GitHub Actions authenticate as the
 #    deployer SA using short-lived tokens -- no JSON key ever created.
 # ---------------------------------------------------------------------------
 echo "==> Creating Workload Identity Pool: ${POOL_ID}"
@@ -132,7 +152,7 @@ gcloud iam service-accounts add-iam-policy-binding "${DEPLOYER_SA_EMAIL}" \
   --quiet
 
 # ---------------------------------------------------------------------------
-# 4. BigQuery dataset the enrichment pipeline writes into.
+# 5. BigQuery dataset the enrichment pipeline writes into.
 # ---------------------------------------------------------------------------
 echo "==> Creating BigQuery dataset: ${BQ_DATASET}"
 bq --location="${BQ_LOCATION}" mk --dataset "${PROJECT_ID}:${BQ_DATASET}" || true
