@@ -199,6 +199,34 @@ the override as active — if the `add-iam-policy-binding` command fails
 immediately after setting the policy, just wait and retry rather than
 suspecting a different cause.
 
+### Tracking Vertex AI token usage / cost per call
+
+Every call (both the batch enrichment pipeline and the Live AI Demo tab)
+logs its token usage to BigQuery (`voc_analytics.vertex_usage_log`) —
+including `thoughts_tokens`, Gemini's hidden internal-reasoning tokens,
+which are billed as output even though you never see them and can dominate
+cost on tasks that don't need them (structured extraction, ours included,
+doesn't; the pipeline and demo both explicitly disable thinking via
+`thinking_budget=0`). Query it directly:
+
+```sql
+SELECT context, model_name, COUNT(*) AS calls,
+       SUM(prompt_tokens) AS input_tokens,
+       SUM(output_tokens) AS output_tokens,
+       SUM(thoughts_tokens) AS thinking_tokens,
+       SUM(estimated_cost_usd) AS estimated_cost_usd
+FROM `voc-dane.voc_analytics.vertex_usage_log`
+GROUP BY context, model_name;
+```
+
+`estimated_cost_usd` is only populated if you set `VERTEX_PRICE_INPUT_PER_1M`
+and `VERTEX_PRICE_OUTPUT_PER_1M` (USD per 1M tokens, current rates from the
+Vertex AI pricing page) as env vars — otherwise it's left `NULL` rather than
+guessing, since pricing changes over time. Either way, the token counts
+themselves are always logged and always accurate; **Cloud Billing Reports
+remains the authoritative dollar figure**, this table is for understanding
+*what's driving* that figure per call, not replacing it.
+
 ## Demo script
 
 1. **Overview** — call volume by LOB, complaint/opportunity rates, sentiment

@@ -129,6 +129,16 @@ def kpi_delta(frame, col, agg="mean", window_days=7):
     return r, (r - p) / abs(p) * 100
 
 
+@st.cache_resource(show_spinner=False)
+def _usage_bq_client():
+    project = os.environ.get("GCP_PROJECT_ID")
+    if not project:
+        return None
+    from google.cloud import bigquery
+
+    return bigquery.Client(project=project)
+
+
 tab_overview, tab_complaints, tab_opps, tab_trends, tab_live, tab_method = st.tabs(
     ["Overview", "Complaints & Risk", "Business Opportunities", "Trends (WoW / MoM)", "Live AI Demo", "Methodology"]
 )
@@ -473,6 +483,7 @@ with tab_live:
                 from google.genai import types
 
                 from prompts import RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, build_user_prompt
+                from usage_log import ensure_table, log_usage
 
                 with st.spinner("Calling Vertex AI..."):
                     client = genai.Client(vertexai=True, project=project, location=location)
@@ -486,6 +497,22 @@ with tab_live:
                     response = client.models.generate_content(
                         model=model_name, contents=build_user_prompt(lob_choice, transcript_text), config=config
                     )
+
+                    usage_client = _usage_bq_client()
+                    if usage_client is not None:
+                        try:
+                            usage_table = ensure_table(usage_client, project, os.environ.get("BQ_DATASET", "voc_analytics"))
+                            log_usage(
+                                usage_client,
+                                usage_table,
+                                "live_demo",
+                                st.session_state.get("session_id"),
+                                model_name,
+                                response.usage_metadata,
+                            )
+                        except Exception:  # noqa: BLE001 - usage logging must never break the demo
+                            pass
+
                     import json
 
                     result = json.loads(response.text)

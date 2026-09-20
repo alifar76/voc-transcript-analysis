@@ -33,6 +33,7 @@ from google import genai
 from google.genai import types
 
 from prompts import RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, build_user_prompt
+from usage_log import log_usage
 
 DEFAULT_MODEL = "gemini-3.8-flash"
 DEFAULT_LOCATION = "us"
@@ -53,7 +54,7 @@ FALLBACK_RECORD = {
 }
 
 
-def enrich_one(client, model_name, lob, raw_transcript):
+def enrich_one(client, model_name, lob, raw_transcript, call_id=None, usage_client=None, usage_table=None):
     prompt = build_user_prompt(lob, raw_transcript)
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_INSTRUCTION,
@@ -70,6 +71,7 @@ def enrich_one(client, model_name, lob, raw_transcript):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = client.models.generate_content(model=model_name, contents=prompt, config=config)
+            log_usage(usage_client, usage_table, "batch_enrichment", call_id, model_name, response.usage_metadata)
             record = json.loads(response.text)
             record["extraction_error"] = False
             return record
@@ -80,7 +82,7 @@ def enrich_one(client, model_name, lob, raw_transcript):
     return dict(FALLBACK_RECORD)
 
 
-def run(input_path, output_path, project, location, model_name, limit, workers):
+def run(input_path, output_path, project, location, model_name, limit, workers, usage_client=None, usage_table=None):
     client = genai.Client(vertexai=True, project=project, location=location)
 
     df = pd.read_csv(input_path)
@@ -90,7 +92,15 @@ def run(input_path, output_path, project, location, model_name, limit, workers):
     results = [None] * len(df)
 
     def task(i, row):
-        return i, enrich_one(client, model_name, row["lob"], row["raw_transcript"])
+        return i, enrich_one(
+            client,
+            model_name,
+            row["lob"],
+            row["raw_transcript"],
+            call_id=row["call_id"],
+            usage_client=usage_client,
+            usage_table=usage_table,
+        )
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(task, i, row) for i, row in df.iterrows()]
@@ -129,7 +139,30 @@ def main():
     parser.add_argument("--bq-location", default="US")
     args = parser.parse_args()
 
-    out_df = run(args.input, args.output, args.project, args.location, args.model, args.limit, args.workers)
+    usage_client, usage_table = None, None
+    if args.load_bigquery:
+        from google.cloud import bigquery
+
+        from usage_log import ensure_table
+
+        usage_client = bigquery.Client(project=args.project)
+        try:
+            usage_table = ensure_table(usage_client, args.project, args.bq_dataset)
+        except Exception as exc:  # noqa: BLE001 - usage logging must never block the run
+            print(f"[warn] couldn't set up usage log table, continuing without it: {exc}", file=sys.stderr)
+            usage_client, usage_table = None, None
+
+    out_df = run(
+        args.input,
+        args.output,
+        args.project,
+        args.location,
+        args.model,
+        args.limit,
+        args.workers,
+        usage_client=usage_client,
+        usage_table=usage_table,
+    )
 
     if args.load_bigquery:
         from bigquery_io import load_dataframe
