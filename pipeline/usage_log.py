@@ -28,18 +28,25 @@ USAGE_LOG_SCHEMA = [
 ]
 
 
+# gemini-3.8-flash, non-global endpoint (what GCP_LOCATION=us/eu bill as --
+# confirmed via Cloud Billing showing the actual region, e.g. us-west4, not
+# the literal "global" endpoint), sourced from
+# https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+# on 2026-09-20. Valid through Dec 31, 2026 -- roughly doubles Jan 1, 2027
+# ($1.65 in / $8.25 out). These are last-known-good defaults, not live-fetched;
+# override via env vars for a different model, or once pricing changes.
+DEFAULT_INPUT_PRICE_PER_1M = 0.825
+DEFAULT_OUTPUT_PRICE_PER_1M = 4.125
+
+
 def _estimate_cost(prompt_tokens, output_tokens, thoughts_tokens):
-    """Approximate only -- Cloud Billing is the source of truth, and pricing
-    changes over time. Reads VERTEX_PRICE_INPUT_PER_1M / VERTEX_PRICE_OUTPUT_PER_1M
-    (USD per 1M tokens) from the environment; returns None if either is unset
-    rather than guessing a number that could be wrong. Thinking tokens are
-    billed at the output rate, same as visible output tokens."""
-    input_price = os.environ.get("VERTEX_PRICE_INPUT_PER_1M")
-    output_price = os.environ.get("VERTEX_PRICE_OUTPUT_PER_1M")
-    if not input_price or not output_price:
-        return None
+    """Approximate only -- Cloud Billing is the source of truth. Reads
+    VERTEX_PRICE_INPUT_PER_1M / VERTEX_PRICE_OUTPUT_PER_1M (USD per 1M
+    tokens) from the environment, falling back to the defaults above.
+    Thinking tokens are billed at the output rate, same as visible output."""
     try:
-        input_price, output_price = float(input_price), float(output_price)
+        input_price = float(os.environ.get("VERTEX_PRICE_INPUT_PER_1M", DEFAULT_INPUT_PRICE_PER_1M))
+        output_price = float(os.environ.get("VERTEX_PRICE_OUTPUT_PER_1M", DEFAULT_OUTPUT_PRICE_PER_1M))
     except ValueError:
         return None
     billable_output = (output_tokens or 0) + (thoughts_tokens or 0)

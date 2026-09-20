@@ -219,13 +219,15 @@ FROM `voc-dane.voc_analytics.vertex_usage_log`
 GROUP BY context, model_name;
 ```
 
-`estimated_cost_usd` is only populated if you set `VERTEX_PRICE_INPUT_PER_1M`
-and `VERTEX_PRICE_OUTPUT_PER_1M` (USD per 1M tokens, current rates from the
-Vertex AI pricing page) as env vars — otherwise it's left `NULL` rather than
-guessing, since pricing changes over time. Either way, the token counts
-themselves are always logged and always accurate; **Cloud Billing Reports
-remains the authoritative dollar figure**, this table is for understanding
-*what's driving* that figure per call, not replacing it.
+`estimated_cost_usd` defaults to `gemini-3.8-flash` non-global pricing as of
+2026-09-20 ($0.825/1M input, $4.125/1M output — confirmed against this
+project's actual Cloud Billing report). That rate is valid through Dec 31,
+2026 and roughly doubles after; override it with `VERTEX_PRICE_INPUT_PER_1M`
+/ `VERTEX_PRICE_OUTPUT_PER_1M` env vars (USD per 1M tokens) for a different
+model or once pricing changes. Either way, the token counts themselves are
+always logged and always accurate regardless of pricing; **Cloud Billing
+Reports remains the authoritative dollar figure**, this table is for
+understanding *what's driving* that figure per call, not replacing it.
 
 ## Demo script
 
