@@ -96,7 +96,7 @@ gcloud iam service-accounts create "${DEPLOYER_SA_NAME}" \
 DEPLOYER_SA_EMAIL="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 wait_for_service_account "${DEPLOYER_SA_EMAIL}"
 
-for role in roles/run.admin roles/cloudbuild.builds.editor roles/artifactregistry.writer roles/storage.admin; do
+for role in roles/run.admin roles/cloudbuild.builds.editor roles/artifactregistry.admin roles/storage.admin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${DEPLOYER_SA_EMAIL}" \
     --role="${role}" \
