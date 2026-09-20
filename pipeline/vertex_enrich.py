@@ -60,6 +60,11 @@ def enrich_one(client, model_name, lob, raw_transcript):
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
         temperature=0.2,
+        # This is a straightforward classification/extraction task with a
+        # fixed schema -- it gets nothing from extended internal reasoning,
+        # which some Gemini models otherwise default to (and bill as hidden
+        # output tokens even though you never see them).
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
     )
     last_err = None
     for attempt in range(1, MAX_RETRIES + 1):
